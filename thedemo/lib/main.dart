@@ -1,122 +1,133 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+
+String ACCESS_TOKEN =
+    'pk.eyJ1IjoiZXJpY2ttZW4iLCJhIjoiY21kbHkxZWltMDA5bDJpcTB5anV5Mm81ZSJ9.zBUEoWLSy73KkI96EehDpQ';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  MapboxOptions.setAccessToken(ACCESS_TOKEN);
+
+  runApp(MaterialApp(home: MapWithPin()));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+class MapWithPin extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
+  State<MapWithPin> createState() => _MapWithPinState();
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class _MapWithPinState extends State<MapWithPin> {
+  late MapboxMap mapboxMap;
+  PointAnnotationManager? pointAnnotationManager;
+  PolygonAnnotationManager? polygonAnnotationManager;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+  final Point parqueMadero = Point(
+    coordinates: Position(-110.94693211397411, 29.078429200831412),
+  );
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Column(
+        children: [
+          SizedBox(height: 100),
+          SizedBox(
+            height: 250,
+            child: MapWidget(
+              styleUri: MapboxStyles.MAPBOX_STREETS,
+              cameraOptions: CameraOptions(center: parqueMadero, zoom: 15),
+              onMapCreated: _onMapCreated,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    this.mapboxMap = mapboxMap;
+
+    // Crear el pin marker
+    await _createPinMarker();
+    
+    // Crear el polígono circular
+    await _createCircularArea();
+  }
+
+  Future<void> _createPinMarker() async {
+    final annotationManager =
+        await mapboxMap.annotations.createPointAnnotationManager();
+    pointAnnotationManager = annotationManager;
+
+    final annotationOptions = PointAnnotationOptions(
+      geometry: parqueMadero,
+      iconSize: 1.5,
+      // ignore: deprecated_member_use
+      iconColor: Colors.red.value,
+      // Opcional: usar un icono personalizado
+      // iconImage: "custom-marker",
+    );
+
+    annotationManager.create(annotationOptions);
+  }
+
+  Future<void> _createCircularArea() async {
+    final polygonManager =
+        await mapboxMap.annotations.createPolygonAnnotationManager();
+    polygonAnnotationManager = polygonManager;
+
+    // Crear puntos para formar un círculo (aproximado con polígono)
+    List<Position> circlePoints = _generateCirclePoints(
+      center: parqueMadero.coordinates,
+      radiusInMeters: 200, // Radio de 200 metros
+      numberOfPoints: 64, // Más puntos = círculo más suave
+    );
+
+    final polygonOptions = PolygonAnnotationOptions(
+      geometry: Polygon(coordinates: [circlePoints]),
+      fillColor: Colors.blue.withOpacity(0.9).value,
+      fillOutlineColor: Colors.blue.value,
+      fillOpacity: 0.3,
+    );
+
+    polygonManager.create(polygonOptions);
+  }
+
+  List<Position> _generateCirclePoints({
+    required Position center,
+    required double radiusInMeters,
+    int numberOfPoints = 64,
+  }) {
+    List<Position> points = [];
+    
+    // Radio de la Tierra en metros
+    const double earthRadius = 6378137.0;
+    
+    // Convertir radio a grados
+    double radiusInDegrees = radiusInMeters / earthRadius * (180 / pi);
+    
+    for (int i = 0; i <= numberOfPoints; i++) {
+      double angle = (i * 2 * pi) / numberOfPoints;
+      
+      // Calcular las coordenadas del punto en el círculo
+      double deltaLat = radiusInDegrees * cos(angle);
+      double deltaLng = radiusInDegrees * sin(angle) / cos(center.lat * pi / 180);
+      
+      double pointLat = center.lat + deltaLat;
+      double pointLng = center.lng + deltaLng;
+      
+      points.add(Position(pointLng, pointLat));
+    }
+    
+    return points;
+  }
+
+  @override
+  void dispose() {
+    pointAnnotationManager?.deleteAll();
+    polygonAnnotationManager?.deleteAll();
+    super.dispose();
   }
 }
